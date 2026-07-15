@@ -1,7 +1,10 @@
 [project]
 name = "procwatch"
 version = "0.1.0"
-description = "Add your description here"
+description = "A minimal process supervisor"
+author = {
+    name = "Jeremiah Igrami", email = "jegrami.dev@gmail.com"
+}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []

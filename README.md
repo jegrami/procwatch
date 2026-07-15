@@ -1,57 +1,65 @@
 # ProcWatch
 
-A minimal process supervisor built to model how tools like `systemd`, `pm2`,
-`supervisord`, and Kubernetes' pod restart policy work.
+ProcWatch runs a command as a child process and keeps it running. If the
+command exits with a non-zero status, ProcWatch restarts it, waiting
+longer between each successive failure (1s, 2s, 4s... capped at 30s by
+default) instead of restarting it instantly every time, which would just
+pile restart attempts on top of whatever already caused it to fail. If
+it exits with status 0, ProcWatch takes that as "done" and stops.
 
+This is a small, deliberately narrow reimplementation of what systemd's
+`Restart=`, pm2, and supervisord all do. Building  this tool helped me understand
+process supervision — exit codes, signal handling, backoff. 
 
-## What it does
+Rationale for the non-obvious choices like backoff, signal handling,
+logging format are in [design-decisons.md](DESIGN.md).
 
-- Launches a target command as a child process
-- Detects how it exited (clean exit vs. crash) via its exit code
-- Restarts on failure, with exponential backoff (1s, 2s, 4s, ... capped
-  at 30s), resetting the backoff once the process is healthy again
-- Handles Ctrl+C (SIGINT) gracefully: sends SIGTERM to the child, waits up
-  to 5s, escalates to SIGKILL only if the child ignores the polite request
-- Writes every lifecycle event (launch, exit, crash, restart, shutdown) as
-  one structured JSON line to `procwatch.log`
-- Backoff delays are configurable via `--base-delay` and `--max-delay`
-  flags, defaults to 2s / 30s if omitted
-
-## What this tiny tool does *not* do
-
-Following the Unix philosophy of "one tool, one job, done well":
-
-- No multi-process orchestration (run one ProcWatch per process you want
-  supervised, not one ProcWatch managing many)
-- No log rotation, no web dashboard, no config file format
-- No dependency management for the child process itself; it assumes the
-  child is a runnable command, nothing more
-
+Procwatch supervises one process per invocation. If you want to supervise five
+processes, run five instances of ProcWatch. There is no manager-of-managers,
+no config file, no web dashboard, and none are planned. That's not what
+this is for.
 
 ## Usage
 
-```bash
-uv sync
-uv run procwatch.py [--base-delay N] [--max-delay N] --  [args...]
+    uv sync
+    uv run procwatch.py [--base-delay N] [--max-delay N] -- <command> [args...]
 
-# examples
-uv run procwatch.py -- python flaky_worker.py
-uv run procwatch.py --base-delay 1 --max-delay 10 -- python flaky_worker.py
-```
+The double dash (`--`) matters. Everything after it is passed straight through to the
+child process. Without it, ProcWatch has no reliable way to
+tell its own flags apart from the child's.
 
-The `--` separates procwatch's own flags from the command being supervised.
-Logs are appended to `procwatch.log`, one JSON object per line.
+    uv run procwatch.py -- python flaky_worker.py fail
+    uv run procwatch.py --base-delay 2 --max-delay 10 -- python server.py
 
+Requires Python 3.10 or later and [uv](https://docs.astral.sh/uv/). I
+developed against 3.14 but the `pyproject.toml` floor is 3.10, and I test
+against it directly with `uv run --python 3.10` before considering
+anything finished.
 
-## Requirements
+## Shutdown
 
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) for dependency and environment management
+Ctrl+C sends SIGTERM to the child and waits five seconds, escalating to
+SIGKILL if it hasn't exited by then.
 
-## TODOs
-- [ ] Add configurable restart policy (`always` / `on-failure` / `never`, like
-      systemd's `Restart=`)
-- [ ] Add max retry limit before giving up entirely
+## Logging
 
-- [x] A `--max-delay` / `--base-delay` CLI flag instead of hardcoded values
+Every event — launch, exit, crash, restart, shutdown — gets written to
+`procwatch.log` as one JSON object per line, in addition to being printed
+to the terminal.
 
+A launch failure (bad command, typo, missing binary) is not retried —
+ProcWatch logs it and stops immediately instead of backing off forever
+against something that can't succeed.
+
+## Limitations
+
+No max-retry ceiling yet — a genuinely broken process will back off to
+30 seconds and sit there indefinitely rather than eventually giving up.
+No configurable restart policy (`always` / `on-failure` / `never`) — it
+currently always retries on failure and never retries on success, full
+stop. Both are on my list, not yet done.
+
+This has been tested against `flaky_worker.py` (included, a deliberately
+controllable dummy process), `python -m http.server`, and `ping`. It has
+not been run against anything with real production stakes, and I wouldn't
+put it in front of anything that matters yet.
