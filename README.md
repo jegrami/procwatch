@@ -32,9 +32,8 @@ tell its own flags apart from the child's.
     uv run procwatch.py --base-delay 2 --max-delay 10 -- python server.py
 
 Requires Python 3.10 or later and [uv](https://docs.astral.sh/uv/). I
-developed against 3.14 but the `pyproject.toml` floor is 3.10, and I test
-against it directly with `uv run --python 3.10` before considering
-anything finished.
+developed against 3.14 but the `pyproject.toml` floor is 3.10, and I tested
+against it directly with `uv run --python 3.10` to ensure  it works with that version. 
 
 ## Shutdown
 
@@ -43,23 +42,21 @@ SIGKILL if it hasn't exited by then.
 
 ## Logging
 
-Every event — launch, exit, crash, restart, shutdown — gets written to
+Launch, exit, crash, restart, and shutdown are written to
 `procwatch.log` as one JSON object per line, in addition to being printed
 to the terminal.
 
-A launch failure (bad command, typo, missing binary) is not retried —
-ProcWatch logs it and stops immediately instead of backing off forever
-against something that can't succeed.
+A launch failure (bad command, typo, missing binary) is not retried. ProcWatch logs it and stops immediately instead of backing off forever against something that can't succeed.
 
 ## Limitations
 
-No max-retry ceiling yet — a genuinely broken process will back off to
-30 seconds and sit there indefinitely rather than eventually giving up.
-No configurable restart policy (`always` / `on-failure` / `never`) — it
-currently always retries on failure and never retries on success, full
-stop. Both are on my list, not yet done.
+1. There's no max-retry ceiling yet. A broken process will back off to 30 seconds and sit there indefinitely rather than eventually giving up. 
 
-This has been tested against `flaky_worker.py` (included, a deliberately
-controllable dummy process), `python -m http.server`, and `ping`. It has
+2. No configurable restart policy (`always` / `on-failure` / `never`). Procwatch
+currently always retries on failure and never retries on success, full
+stop.
+
+3. This has been tested against `flaky_worker.py` (included, a deliberately
+controllable dummy process), `python -m http.server`, `ping`, and `node server.js`. It has
 not been run against anything with real production stakes, and I wouldn't
 put it in front of anything that matters yet.
