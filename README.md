@@ -42,7 +42,7 @@ SIGKILL if it hasn't exited by then.
 
 ## Logging
 
-Launch, exit, crash, restart, and shutdown are written to
+Launch, exit, crash, restart, and shutdown events are written to
 `procwatch.log` as one JSON object per line, in addition to being printed
 to the terminal.
 
@@ -53,8 +53,7 @@ A launch failure (bad command, typo, missing binary) is not retried. ProcWatch l
 1. There's no max-retry ceiling yet. A broken process will back off to 30 seconds and sit there indefinitely rather than eventually giving up. 
 
 2. No configurable restart policy (`always` / `on-failure` / `never`). Procwatch
-currently always retries on failure and never retries on success, full
-stop.
+currently always retries on failure and never retries on success, and that's it. 
 
 3. This has been tested against `flaky_worker.py` (included, a deliberately
 controllable dummy process), `python -m http.server`, `ping`, and `node server.js`. It has
